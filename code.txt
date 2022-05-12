@@ -1,0 +1,138 @@
+#include "MQ135.h"
+const int ANALOGPIN=A0;
+MQ135 gasSensor = MQ135(ANALOGPIN);
+//////////////////////////////////////////////////
+#include <TinyGPS.h>
+#include <SoftwareSerial.h>
+SoftwareSerial Gsm(5,6);
+char phone_no[] = "08979266267"; //replace with phone no. to get sms
+TinyGPS gps;
+int Buzzer = 10; 
+int FAN = 9; 
+
+void setup()
+{
+  Serial.begin(9600);
+  pinMode(ANALOGPIN,INPUT);
+  pinMode(Buzzer,OUTPUT);
+  pinMode(FAN,OUTPUT);
+digitalWrite(Buzzer,LOW);
+digitalWrite(FAN,LOW);
+
+  Gsm.begin(9600);
+ //Serial.println("welcome"); 
+  delay(3000);
+
+ }
+
+
+
+void loop()
+{
+  float ppm = gasSensor.getPPM();
+  //Serial.print("MQ135 ");
+  //Serial.println(ppm);
+  //Serial.println("ppm");
+  if(ppm>=1)
+  {
+
+  //Serial.println("AIR QUALITY BAD");
+ digitalWrite(Buzzer,HIGH);
+ digitalWrite(FAN,HIGH);
+ send_message();
+ delay(1000);
+ send_message_normal();
+  delay(1000);
+
+  }
+  else
+  {
+  //Serial.println("AIR QUALITY GOOD");
+  digitalWrite(Buzzer,LOW);
+  digitalWrite(FAN,LOW);
+
+  delay(500);
+  }
+}
+void send_message()
+{
+
+  int count=0;  
+  bool newData = false;
+  unsigned long chars;
+  unsigned short sentences, failed;
+  // For one second we parse GPS data and report some key values
+  for (unsigned long start = millis(); millis() - start < 1000;)
+  {
+    while (Serial.available())
+    {
+      char c = Serial.read();
+      Serial.print(c);
+      count++;
+      if (gps.encode(c))
+        newData = true;
+      if(count >= 10000)
+        break;  
+    }
+  }
+  if (newData)      //If newData is true
+  {
+    float flat, flon;
+    unsigned long age;
+    gps.f_get_position(&flat, &flon, &age);
+    Gsm.print("AT+CMGF=1\r");
+    delay(400);
+    Gsm.print("AT+CMGS=\"");
+    Gsm.print(phone_no);
+    Gsm.println("\"");
+    delay(300);
+    
+    Gsm.print("http://maps.google.com/maps?q=loc:");
+    Gsm.print(flat == TinyGPS::GPS_INVALID_F_ANGLE ? 0.0 : flat, 6);
+    Gsm.print(",");
+    Gsm.print(flon == TinyGPS::GPS_INVALID_F_ANGLE ? 0.0 : flon, 6);
+    delay(200);
+    Gsm.println((char)26); // End AT command with a ^Z, ASCII code 26
+    delay(200);
+    Gsm.println("\"");
+    delay(300);
+    Gsm.println();
+    delay(20000);
+  }
+ 
+  else
+  {
+    Gsm.print("AT+CMGF=1\r");
+    delay(400);
+    Gsm.print("AT+CMGS=\"");
+    Gsm.print(phone_no);
+    Gsm.println("\"");
+    delay(300);
+    Gsm.print("AIR QUALITY BAD");
+    delay(200);
+    Gsm.println((char)26); // End AT command with a ^Z, ASCII code 26
+    delay(200);
+    Gsm.println();
+     //Serial.println("SNDING OKKKKK");
+    delay(20000);
+  }
+}
+
+void send_message_normal()
+{
+  //Serial.println("sending...."); 
+  Gsm.print("AT+CMGF=1\r");
+  delay(400);
+  Gsm.print("AT+CMGS=\"");
+  Gsm.print(phone_no);
+  Gsm.println("\"");
+  delay(300);
+  Gsm.print("AIR QUALITY BAD");
+  delay(200);
+  Gsm.println((char)26); // End AT command with a ^Z, ASCII code 26
+  delay(200);
+  Gsm.println();
+  delay(20000); 
+ // Serial.println("sending....ok"); 
+
+}
